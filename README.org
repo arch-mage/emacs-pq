@@ -1,0 +1,88 @@
+#+title: Emacs PQ
+#+options: toc:nil
+
+#+begin_quote
+PostgreSQL interface for Emacs.
+#+end_quote
+
+* usage
+
+Simple usage with temporary connection.
+
+#+begin_src emacs-lisp
+(require 'pq)
+
+;; these are default options.
+(pq:with-temp-conn (list :host "127.0.0.1"
+                         :port 5432
+                         :user user-login-name
+                         :database user-login-name
+                         :password nil
+                         :proc-name "pq")
+  (pq:exec "CREATE TEMP TABLE person (id SERIAL PRIMARY KEY, name TEXT)")
+  (pq:exec '("INSERT INTO person (name) VALUES ($1), ($2)" "someone" "anyone"))
+  (pq:query "SELECT id, name FROM person ORDER BY id" (row columns row-idx)
+    (message "row number: %d" row-idx)
+    (seq-map-indexed
+     (lambda (col idx)
+       (message "    %s: %s" (aref col 0) (aref row idx)))
+     columns)))
+
+;; output:
+;; row number: 0
+;;     id: 1
+;;     name: someone
+;; row number: 1
+;;     id: 2
+;;     name: anyone
+#+end_src
+
+With persistent connection.
+
+#+begin_src emacs-lisp
+
+(defvar pq-connection nil)
+
+(pq:chain (pq-connect)
+  (pq:then (conn) (setq pq-connection conn))
+  (pq:catch (err)
+    ;; somehow handle error
+    ))
+
+;; but you need to make sure pq-connection is already resolved.
+(pq:with pq-connection
+  (pq:query '("SELECT version()") (row)
+    (message "%s" row)))
+
+#+end_src
+
+Or, you can just store unresolved =pq-future= object.
+
+#+begin_src emacs-lisp
+
+(defvar pq-connection (pq-connect))
+
+(pq:with pq-connection
+  (pq:query '("SELECT version()") (row)
+    (message "%s" row)))
+
+#+end_src
+
+* todo lists
+
+** TODO MD5 password authentication
+
+SCRAM-SHA-256 password authentication is already implemented though.
+
+** TODO Transaction API
+
+For now, transaction can be done like this:
+
+#+begin_src emacs-lisp
+(pq:with-temp-conn nil
+  (pq:exec "BEGIN")
+  (pq:exec "INSERT INTO some_table VALUES ('value')")
+  (pq:query '("SELECT * FROM some_table") (row)
+    (message "%s" row))
+  (pq:exec "COMMIT")) ;; or ROLLBACK
+#+end_src
