@@ -86,3 +86,5 @@ For now, transaction can be done like this:
     (message "%s" row))
   (pq:exec "COMMIT")) ;; or ROLLBACK
 #+end_src
+
+
